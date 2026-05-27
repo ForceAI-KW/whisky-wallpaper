@@ -2,11 +2,10 @@ import AVFoundation
 import AVKit
 import AppKit
 
-/// Owns a single AVPlayer + one AVPlayerView per screen. The same player
-/// drives every screen — frames are synced, audio is muted (wallpapers
-/// shouldn't make sound). On sleep/wake AVPlayer often stalls; we observe
-/// `.AVPlayerItemDidPlayToEndTime` (the loop point) AND
-/// `NSWorkspace.didWakeNotification` to nudge the player back to life.
+/// Owns a single AVPlayer + one AVPlayerLayer per screen. The same player
+/// drives every screen — frames synced, audio muted. On sleep/wake AVPlayer
+/// often stalls; observers on `NSWorkspace.willSleepNotification` and
+/// `.didWakeNotification` pause/resume cleanly.
 final class WallpaperPlayer {
     private let player: AVQueuePlayer
     private var looper: AVPlayerLooper?
@@ -79,22 +78,17 @@ final class WallpaperPlayer {
 
         sleepObserver = nc.addObserver(forName: NSWorkspace.willSleepNotification,
                                         object: nil, queue: .main) { [weak self] _ in
-            // Pause on sleep so AVPlayer doesn't burn cycles trying to
-            // decode against a backgrounded display.
             self?.player.pause()
         }
 
         wakeObserver = nc.addObserver(forName: NSWorkspace.didWakeNotification,
                                        object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
-            // Resume only if the user didn't explicitly pause via the menu.
             if !SettingsManager.shared.isPaused {
                 self.player.play()
             }
         }
 
-        // Spaces / display reconfiguration can leave the queue in a stale
-        // state too — a beat after the change, retry play.
         spaceChangeObserver = nc.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                               object: nil, queue: .main) { [weak self] _ in
             guard let self = self, !SettingsManager.shared.isPaused else { return }

@@ -11,12 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSLog("[WhiskyWallpaper] launched")
 
-        // Menu bar icon — sparkles (matches the app icon).
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "sparkles",
                                             accessibilityDescription: "Whisky Wallpaper")
 
-        // Player + per-display windows + playlist (rotation timer).
         player = WallpaperPlayer()
         windowController = WallpaperWindowController(player: player)
         playlist = PlaylistManager()
@@ -31,10 +29,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem.menu = buildMenu()
 
-        // First-run UX: pick the largest video in the wallpaper folder if
-        // we have no current bookmark. Browser-downloaded files (MoeWalls,
-        // Pixabay, etc.) tend to be largest by far so this picks the
-        // 4K headliner automatically.
         if let url = SettingsManager.shared.currentWallpaperURL,
            FileManager.default.fileExists(atPath: url.path) {
             player.load(url: url)
@@ -46,7 +40,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("[WhiskyWallpaper] no wallpapers found in \(SettingsManager.shared.wallpaperFolderURL.path)")
         }
 
-        // Always-on: register as Login Item so the wallpaper survives reboot.
         registerAsLoginItem()
     }
 
@@ -55,19 +48,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        // Now-playing header (disabled, informational).
         let currentURL = SettingsManager.shared.currentWallpaperURL
         let nowTitle: String = {
-            if let url = currentURL {
-                return "Now playing: \(prettyName(url))"
-            }
+            if let url = currentURL { return "Now playing: \(prettyName(url))" }
             return "No wallpaper selected"
         }()
         let nowItem = NSMenuItem(title: nowTitle, action: nil, keyEquivalent: "")
         nowItem.isEnabled = false
         menu.addItem(nowItem)
 
-        // Next-rotation countdown (only shown when rotation is on).
         if let mins = playlist.minutesUntilNextRotation {
             let label = mins == 0 ? "Rotating now…" : "Next change in \(mins)m"
             let nextItem = NSMenuItem(title: label, action: nil, keyEquivalent: "")
@@ -77,14 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Manual picker (file).
         let pickItem = NSMenuItem(title: "Pick wallpaper file…",
                                    action: #selector(pickWallpaperAction),
                                    keyEquivalent: "o")
         pickItem.target = self
         menu.addItem(pickItem)
 
-        // Folder picker (scope rotation to a different dir).
         let folderItem = NSMenuItem(title: "Pick wallpaper folder…",
                                      action: #selector(pickFolderAction),
                                      keyEquivalent: "f")
@@ -93,8 +80,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Rotation submenu — Off / 5m / 10m / 30m, with a checkmark on the
-        // active choice.
         let rotationItem = NSMenuItem(title: "Rotation", action: nil, keyEquivalent: "")
         let rotationSub = NSMenu()
         let currentRotation = SettingsManager.shared.rotationIntervalMinutes
@@ -118,7 +103,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         rotationItem.submenu = rotationSub
         menu.addItem(rotationItem)
 
-        // Playlist preview submenu (read-only list of available wallpapers).
         let playlistCount = playlist.currentPlaylist.count
         let playlistItem = NSMenuItem(title: "Playlist (\(playlistCount) videos)",
                                        action: nil, keyEquivalent: "")
@@ -144,7 +128,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Playback controls.
         let pauseTitle = SettingsManager.shared.isPaused ? "Resume" : "Pause"
         let pauseItem = NSMenuItem(title: pauseTitle,
                                     action: #selector(togglePauseAction),
@@ -167,9 +150,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Quit — must target NSApp (NSApplication.terminate(_:) lives on
-        // the application, not the delegate). Captured in the global
-        // memory file `feedback-nsmenu-quit-target-nsapp.md`.
         let quitItem = NSMenuItem(title: "Quit Whisky Wallpaper",
                                    action: #selector(NSApplication.terminate(_:)),
                                    keyEquivalent: "q")
@@ -182,8 +162,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func rebuildMenu() {
         statusItem.menu = buildMenu()
     }
-
-    // MARK: - actions
 
     @objc private func pickWallpaperAction() {
         let panel = NSOpenPanel()
@@ -199,7 +177,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-
         SettingsManager.shared.setCurrentWallpaper(url)
         player.load(url: url)
         rebuildMenu()
@@ -216,14 +193,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-
         SettingsManager.shared.setWallpaperFolder(url)
         rebuildMenu()
     }
 
     @objc private func setRotationAction(_ sender: NSMenuItem) {
-        let mins = sender.tag
-        playlist.applyInterval(mins)
+        playlist.applyInterval(sender.tag)
         rebuildMenu()
     }
 
@@ -255,10 +230,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
-    // MARK: - helpers
-
-    /// Strip the noisy "-moewalls-com" / "-pixabay" / "-shutterstock"
-    /// trailer + the extension for menu display.
     private func prettyName(_ url: URL) -> String {
         var name = url.deletingPathExtension().lastPathComponent
         let trailers = ["-moewalls-com", "-pixabay", "-shutterstock", "-mylivewallpapers", "-mylivewallpapers-com"]
@@ -272,7 +243,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return name.trimmingCharacters(in: .whitespaces)
     }
 
-    /// Pick the largest video in the wallpaper folder for first-run UX.
     private func findFirstWallpaperInFolder() -> URL? {
         playlist.currentPlaylist
             .map { ($0, (try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
