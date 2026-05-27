@@ -4,9 +4,21 @@ Guidance for Claude Code when working in this repository.
 
 ## What this project is
 
-Whisky Wallpaper is a native macOS animated-wallpaper engine — a free FOSS alternative to [Backdrop](https://cindori.com/backdrop) by Cindori. It plays a `.mp4` / `.mov` looped on every attached display as the desktop wallpaper, rotates through a folder on a timer, and lives in the menu bar. Pure AVFoundation + AppKit, no private APIs, no entitlements beyond default unsandboxed.
+Whisky Wallpaper is a native macOS animated-wallpaper engine — a free FOSS alternative to [Backdrop](https://cindori.com/backdrop) by Cindori. It plays a `.mp4` / `.mov` looped on every attached display as the desktop wallpaper, rotates through a folder on a timer, and (in v2) registers the active video as a system aerial so the lock-screen wallpaper visually matches the desktop video.
 
 Sibling project: [Whisky Claude](https://github.com/ForceAI-KW/whisky-claude) — the menu-bar + window-management scaffolding is shared.
+
+## v2 architecture (2026-05-28)
+
+**Desktop rendering** = NSWindow at `kCGDesktopWindowLevel` playing the video via `AVQueuePlayer` + `AVPlayerLooper` (`WallpaperWindowController.swift` + `WallpaperPlayer.swift`). Animated, multi-display, sleep/wake aware. Same mechanism Backdrop uses for desktop.
+
+**Lock-screen rendering** = best-effort via two mechanisms triggered together when a wallpaper activates:
+1. **`AerialInstaller`** stages the video into `~/Library/Application Support/com.apple.wallpaper/aerials/videos/<UUID>.mov` and adds an asset + category record (with `representativeAssetID`) to `manifest/entries.json`. The aerial appears in **System Settings → Wallpaper** under the "Whisky" category, where Apple's signed UI can activate it end-to-end (giving full animated lock-screen video if the user picks it manually).
+2. **`WallpaperBridge.setStaticDesktopImage`** uses public `NSWorkspace.setDesktopImageURL` to set a still PNG frame extracted from the video as the system's static wallpaper. When the screen locks (NSWindow disappears), macOS falls back to this still — so the lock screen visually matches the desktop video, just static.
+
+Toggle via menu: **Lock-screen sync: On / Off** (default On). When off, AerialInstaller doesn't write to System Settings → Wallpaper.
+
+**Why not just programmatically activate the aerial?** macOS Tahoe 26.5's wallpaper system holds the canonical active-assetID in `WallpaperAgent`'s in-memory state, not in `Index.plist` (the plist is a snapshot WallpaperAgent overwrites on every restart). Setting the active aerial requires the private `Wallpaper.framework` XPC interface — specifically a method we found in `Wallpaper.tbd` called `WallpaperSettingsManager.invokeContextMenuAction(menuItemID:, groupItemID:, choiceProviderID:)` — but ContextMenuItem IDs aren't statically exported, so a third-party app can't replicate the call without further reverse engineering. Backdrop uses this private path via Cindori's Developer ID-signed code. Our v2 gets the user 90% of the way by populating the picker, leaving Apple's signed UI to do the final activation.
 
 ## Build
 
@@ -16,46 +28,31 @@ xcodebuild -project WhiskyWallpaper.xcodeproj -scheme WhiskyWallpaper -configura
     CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
 ```
 
-Output at `build/Build/Products/Release/WhiskyWallpaper.app`. Ad-hoc codesign (no Apple Developer cert).
+Output at `build/Build/Products/Release/WhiskyWallpaper.app`. Ad-hoc codesign.
 
-End-to-end install: `./scripts/install.sh` (build → sign → copy to /Applications → launch → register Login Item, idempotent).
+The project links Apple's private `Wallpaper.framework` at `/System/Library/PrivateFrameworks/Wallpaper.framework` via:
+- `FRAMEWORK_SEARCH_PATHS = (..., "/System/Library/PrivateFrameworks")`
+- `OTHER_LDFLAGS = ("-framework", "Wallpaper")`
 
-No tests configured yet — the surface is small enough that it's been manually verified across single-display + multi-display (laptop + external) + sleep-wake cycles.
+End-to-end install: `./scripts/install.sh` (build → sign → copy to /Applications → launch).
 
-## Architecture (6 Swift files, ~625 lines)
+## Architecture (7 Swift files)
 
 | File | Role |
 |---|---|
-| `WhiskyWallpaperApp.swift` | `@main` entry, hands off to AppDelegate. Empty SwiftUI `Settings` scene so the app launches without a visible window. |
-| `AppDelegate.swift` | NSStatusItem menu (rotation submenu, playlist preview, picker, pause/resume), first-run auto-pick (largest video in folder), Login Item registration via `SMAppService`. |
-| `SettingsManager.swift` | UserDefaults wrapper. Security-scoped bookmark for the current wallpaper URL (survives moves) + the wallpaper folder URL. Rotation interval (0/5/10/30 min). |
-| `PlaylistManager.swift` | Folder scan (`.mp4`/`.mov`/`.m4v`, ≥1MB, skips `Screen*` recordings). Rotation timer (`Timer.scheduledTimer` on `RunLoop.main` with `.common` mode). Random pick that excludes the currently-playing file. |
-| `WallpaperPlayer.swift` | Shared `AVQueuePlayer` + `AVPlayerLooper` for seamless loops (no black frame at the loop point). One `AVPlayerLayer` per display; AVPlayer drives them all from a single decode pipeline. Sleep/wake observers via `NSWorkspace.willSleepNotification` / `.didWakeNotification`. |
-| `WallpaperWindowController.swift` | One borderless `NSWindow` per `NSScreen` at `kCGDesktopWindowLevel` (below desktop icons). `ignoresMouseEvents = true` so icons stay clickable. Rebuilds windows on `NSApplication.didChangeScreenParametersNotification` (monitor plug/unplug). |
+| `WhiskyWallpaperApp.swift` | `@main` entry |
+| `AppDelegate.swift` | NSStatusItem menu, rotation, first-run pick, login item, and `activateWallpaper(url:source:)` which coordinates the NSWindow + AerialInstaller + WallpaperBridge calls |
+| `SettingsManager.swift` | UserDefaults: current wallpaper bookmark, folder bookmark, rotation interval, **`isLockScreenSyncEnabled`** (default On) |
+| `PlaylistManager.swift` | Folder scan + rotation timer |
+| `WallpaperPlayer.swift` | Shared AVQueuePlayer + AVPlayerLooper. Sleep/wake observers |
+| `WallpaperWindowController.swift` | One borderless NSWindow per NSScreen at desktop level |
+| **`AerialInstaller.swift`** | Stages a video as a system aerial: copies → `aerials/videos/<UUID>.mov`, generates thumbnail, appends asset record + category record (with `representativeAssetID`) to `manifest/entries.json`, updates `Store/Index.plist` `SystemDefault.Linked` |
+| **`WallpaperBridge.swift`** | Private `Wallpaper.framework` bridge via `@_silgen_name`. `setStaticDesktopImage` (uses public NSWorkspace) and `nudgeSystemRefresh` (uses private `setLegacyDesktopPicture`) |
 
-## Key technical choices
+## Standing rules from global config
 
-- **`AVPlayerLooper` not `seek(.zero)`** — looper hides the loop point seamlessly; the naive seek approach shows a black frame between iterations.
-- **`NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))`** — sits below desktop icons. Re-applied after `orderFront()` because AppKit sometimes pulls borderless windows up on first show.
-- **`collectionBehavior: [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]`** — shown on every Space, doesn't slide on Mission Control, skipped by Cmd-` window cycle.
-- **`Timer` on `RunLoop.common` mode** — rotation timer survives menu-tracking. Default `.default` mode pauses when menus are open.
-- **Security-scoped bookmarks** — survive file moves + restarts. Fall back to plain bookmark if security-scoped fails (e.g. user picks a file in an unsandboxed location like `~/Downloads`).
-
-## Entitlements + TCC permissions
-
-Empty `WhiskyWallpaper.entitlements`. The app needs no special permissions:
-- File access via `NSOpenPanel` is granted by macOS implicitly when the user picks the file
-- No microphone, no camera, no AppleScript, no automation
-- No network entitlement
-
-LSUIElement = YES — menu bar only, no Dock icon.
-
-## Standing rules from global config (cross-project)
-
-These are enforced globally in `~/.claude/CLAUDE.md`. Summarized here so contributors who don't have the global config still see them.
-
-1. **Memory pipeline after every commit** — `nohup ~/.claude/scripts/update-memory-pipeline.sh all` fires after each commit. Not optional.
-2. **Scoped memory = source of truth, MEMORY.md = index** — detailed lessons live in `feedback-*.md` / `project-*.md` files; MEMORY.md is the pointer table.
-3. **Fix everything, no "non-blocking ignored" category** — warnings + lint errors are treated as failures.
-4. **Never defer a task unless Ahmad explicitly asks** — don't leave partial work or TODOs without a signal.
-5. **Documentation parity** — every feature ships with docs in the same session (local commit + remote push).
+Enforced globally in `~/.claude/CLAUDE.md`:
+1. Memory pipeline after every commit — `nohup ~/.claude/scripts/update-memory-pipeline.sh all`
+2. Scoped memory = source of truth, MEMORY.md = index
+3. Fix everything, no deferrals unless Ahmad explicitly asks
+4. Documentation parity — feature + docs same session

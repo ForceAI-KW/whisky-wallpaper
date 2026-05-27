@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var player: WallpaperPlayer!
     private var windowController: WallpaperWindowController!
     private var playlist: PlaylistManager!
+    private let aerialInstaller = AerialInstaller()
+    private var currentAerialUUID: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSLog("[WhiskyWallpaper] launched")
@@ -19,9 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = WallpaperWindowController(player: player)
         playlist = PlaylistManager()
         playlist.onRotate = { [weak self] url in
-            self?.player.load(url: url)
+            self?.activateWallpaper(url: url, source: "rotation")
             self?.rebuildMenu()
-            NSLog("[WhiskyWallpaper] rotated to \(url.lastPathComponent)")
         }
         playlist.onIntervalChange = { [weak self] in
             self?.rebuildMenu()
@@ -31,16 +32,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let url = SettingsManager.shared.currentWallpaperURL,
            FileManager.default.fileExists(atPath: url.path) {
-            player.load(url: url)
+            activateWallpaper(url: url, source: "launch")
         } else if let firstPick = findFirstWallpaperInFolder() {
             SettingsManager.shared.setCurrentWallpaper(firstPick)
-            player.load(url: firstPick)
-            NSLog("[WhiskyWallpaper] first-run: picked \(firstPick.lastPathComponent)")
+            activateWallpaper(url: firstPick, source: "first-run")
         } else {
             NSLog("[WhiskyWallpaper] no wallpapers found in \(SettingsManager.shared.wallpaperFolderURL.path)")
         }
 
         registerAsLoginItem()
+    }
+
+    /// Single activation path. Updates:
+    /// - NSWindow video (animated desktop)
+    /// - Lock-screen static image (frame extracted from video, set via NSWorkspace)
+    /// - Aerial registration (`entries.json` + `Index.plist`) — populates the
+    ///   System Settings → Wallpaper picker so the user can manually select
+    ///   the aerial there for full lock-screen video support if they want
+    private func activateWallpaper(url: URL, source: String) {
+        NSLog("[WhiskyWallpaper] activate(\(source)) -> \(url.lastPathComponent)")
+        SettingsManager.shared.setCurrentWallpaper(url)
+        player.load(url: url)
+
+        // Lock-screen + aerial registration is best-effort. Failure here doesn't
+        // block the NSWindow desktop rendering above.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.tryAerialAndLockScreenSync(videoURL: url)
+        }
+    }
+
+    private func tryAerialAndLockScreenSync(videoURL: URL) {
+        guard SettingsManager.shared.isLockScreenSyncEnabled else {
+            NSLog("[WhiskyWallpaper] lock-screen sync disabled — skipping aerial registration")
+            return
+        }
+        do {
+            let displayName = self.prettyName(videoURL)
+            let uuid = try aerialInstaller.installAerial(from: videoURL, displayName: displayName)
+            try aerialInstaller.setAsActive(uuid: uuid)
+
+            // Extract still frame for lock-screen / fallback image. The aerial
+            // installer already wrote a .png thumbnail at the staged path.
+            let thumbURL = AerialInstaller.aerialThumbsDir.appendingPathComponent("\(uuid).png")
+            if FileManager.default.fileExists(atPath: thumbURL.path) {
+                _ = WallpaperBridge.setStaticDesktopImage(thumbURL)
+                _ = WallpaperBridge.nudgeSystemRefresh(staticImageURL: thumbURL)
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                self?.currentAerialUUID = uuid
+                self?.rebuildMenu()
+            }
+            NSLog("[WhiskyWallpaper] aerial sync OK: uuid=\(uuid)")
+        } catch {
+            NSLog("[WhiskyWallpaper] aerial sync FAILED: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - menu
@@ -141,6 +187,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reloadItem.target = self
         menu.addItem(reloadItem)
 
+        let lockSyncTitle = SettingsManager.shared.isLockScreenSyncEnabled
+            ? "Lock-screen sync: On"
+            : "Lock-screen sync: Off"
+        let lockSyncItem = NSMenuItem(title: lockSyncTitle,
+                                       action: #selector(toggleLockScreenSyncAction),
+                                       keyEquivalent: "l")
+        lockSyncItem.target = self
+        lockSyncItem.toolTip = "When on, Whisky registers the current video as an aerial in System Settings → Wallpaper and sets a still frame of it as the lock-screen image."
+        menu.addItem(lockSyncItem)
+
         let revealItem = NSMenuItem(title: "Reveal in Finder",
                                      action: #selector(revealInFinderAction),
                                      keyEquivalent: "")
@@ -177,8 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        SettingsManager.shared.setCurrentWallpaper(url)
-        player.load(url: url)
+        activateWallpaper(url: url, source: "menu-pick")
         rebuildMenu()
     }
 
@@ -208,8 +263,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func pickFromPlaylistAction(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
-        SettingsManager.shared.setCurrentWallpaper(url)
-        player.load(url: url)
+        activateWallpaper(url: url, source: "menu-playlist")
+        rebuildMenu()
+    }
+
+    @objc private func toggleLockScreenSyncAction() {
+        SettingsManager.shared.isLockScreenSyncEnabled.toggle()
+        if SettingsManager.shared.isLockScreenSyncEnabled,
+           let url = SettingsManager.shared.currentWallpaperURL {
+            // Just enabled — sync the current wallpaper
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.tryAerialAndLockScreenSync(videoURL: url)
+            }
+        } else if !SettingsManager.shared.isLockScreenSyncEnabled {
+            // Just disabled — remove our aerials so we don't pollute the user's picker
+            aerialInstaller.removeAllManagedAerials()
+            currentAerialUUID = nil
+        }
         rebuildMenu()
     }
 

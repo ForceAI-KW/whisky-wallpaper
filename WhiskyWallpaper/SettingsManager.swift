@@ -9,10 +9,12 @@ import AppKit
 final class SettingsManager {
     static let shared = SettingsManager()
 
-    private let kCurrentBookmark = "currentWallpaperBookmark"
-    private let kFolderBookmark  = "wallpaperFolderBookmark"
-    private let kIsPaused        = "isPaused"
-    private let kRotationMinutes = "rotationIntervalMinutes"
+    private let kCurrentBookmark    = "currentWallpaperBookmark"
+    private let kFolderBookmark     = "wallpaperFolderBookmark"
+    private let kIsPaused           = "isPaused"
+    private let kRotationMinutes    = "rotationIntervalMinutes"
+    private let kLockScreenSyncOn   = "lockScreenSyncEnabled"
+    private let kLockScreenSyncSet  = "lockScreenSyncEnabledSetByUser"
 
     // Rotation choices — surfaced in the menu's "Rotation" submenu.
     static let rotationChoices: [Int] = [0, 5, 10, 30]
@@ -20,6 +22,26 @@ final class SettingsManager {
     var isPaused: Bool {
         get { UserDefaults.standard.bool(forKey: kIsPaused) }
         set { UserDefaults.standard.set(newValue, forKey: kIsPaused) }
+    }
+
+    /// Whether to register the current wallpaper as a system aerial + set a still
+    /// frame of it as the lock-screen image. Default ON — lock-screen "match the
+    /// desktop video" is the most-requested missing-vs-Backdrop feature, so we
+    /// opt the user in by default. They can turn it off from the menu if they
+    /// don't want Whisky writing to their System Settings → Wallpaper picker.
+    var isLockScreenSyncEnabled: Bool {
+        get {
+            // Use a separate "set" key so we can distinguish "unset (default ON)"
+            // from "user explicitly set false".
+            if !UserDefaults.standard.bool(forKey: kLockScreenSyncSet) {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: kLockScreenSyncOn)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: kLockScreenSyncOn)
+            UserDefaults.standard.set(true, forKey: kLockScreenSyncSet)
+        }
     }
 
     /// Rotation interval in minutes. 0 = rotation disabled (a single
