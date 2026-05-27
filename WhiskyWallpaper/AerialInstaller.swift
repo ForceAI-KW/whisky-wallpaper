@@ -2,48 +2,57 @@ import Foundation
 import AppKit
 import AVFoundation
 
-/// **DEAD END — DO NOT WIRE INTO THE APP.** This file is preserved as
-/// archaeology for anyone re-attempting macOS aerial impersonation.
+/// **PARTIAL — DO NOT WIRE INTO THE APP YET.** This file is preserved
+/// as the documented schema for macOS aerial impersonation, updated
+/// 2026-05-28 after deeper investigation revealed the full Backdrop
+/// mechanism.
 ///
-/// Verified non-viable on macOS Tahoe 26.5 (2026-05-28). The asset
-/// catalog `WallpaperAerialsExtension` actually reads is inside a
-/// SIP-protected system framework at
-/// `/System/Library/PrivateFrameworks/WallpaperAerialAssets.framework/Versions/A/Resources/entries.json`,
-/// not the user-writable copy at `~/Library/Application Support/com.apple.wallpaper/aerials/manifest/entries.json`.
-/// Apple's UUIDs are additionally embedded as literals inside the
-/// extension's Mach-O binary.
+/// **Status update vs prior banner (corrected):**
+/// - Aerial impersonation via `~/Library/Application Support/com.apple.wallpaper/`
+///   IS readable by the system. Files placed there DO register.
+/// - The COMPLETE recipe requires:
+///   1. Video at `aerials/videos/<UUID>.mov` (use .mov, not .mp4)
+///   2. Thumbnail at `aerials/thumbnails/<UUID>.png`
+///   3. ASSET record in `manifest/entries.json` `assets[]`
+///   4. **CATEGORY record** in `manifest/entries.json` `categories[]` with
+///      `representativeAssetID` pointing back at the asset UUID — this is
+///      the piece missing from the v2 attempt that failed.
+///   5. `Store/Index.plist` `SystemDefault.Linked.Content.Choices` set to
+///      provider `com.apple.wallpaper.choice.aerials` with assetID config.
 ///
-/// Hypotheses tested + rejected (see `scripts/test-h4-apple-category.py`
-/// and `scripts/test-h6-system-default.py`):
-/// - H4: reuse Apple's category UUID (`A33A55D9-...`) — extension still
-///   rendered Tahoe Day fallback.
-/// - H6: write to `SystemDefault.Linked` + `Spaces.Default.Linked` +
-///   `AllSpacesAndDisplays.Linked` (the actual active-wallpaper nodes)
-///   instead of just `Displays[*].Desktop` — extension still rendered
-///   Tahoe Day fallback.
+/// **The actual blocker preventing FOSS adoption:** WallpaperAgent holds
+/// the canonical active-assetID in-memory and OVERWRITES Index.plist with
+/// its cached value on every startup. Setting Index.plist persistently
+/// requires calling a private Wallpaper.framework XPC API (the same one
+/// Backdrop's `BackdropKit.WallpaperManager.setWallpaperForAllSpacesAndDisplays(aerialID:)`
+/// uses). Without that call, our edits are reverted by the next
+/// WallpaperAgent restart.
 ///
-/// `lsof` on a fresh `WallpaperAerialsExtension` PID shows zero open
-/// handles to the user-writable `entries.json` or `Index.plist`. The
-/// extension mmaps the SIP-protected framework catalog at load and
-/// ignores our edits entirely.
+/// **Reverse-engineering pathway** (for a future motivated attempt):
+/// 1. Extract Wallpaper.framework from `dyld_shared_cache_arm64e` via
+///    `dsc_extractor`.
+/// 2. Find the XPC Mach service name (`com.apple.wallpaper`) + the
+///    proxy class that exposes a "setActive(assetID:)" or similar method.
+/// 3. Implement the XPC client in Swift, sign with a Developer ID, ship.
 ///
-/// To inject a third-party aerial: needs SIP off (not viable for an
-/// app), or a custom WallpaperProvider extension on the `com.apple.wallpaper`
-/// extension point (closed — `pluginkit -m` confirms only `com.apple.*`
-/// providers can register), or a private-API path not available to
-/// third-party signing certificates.
+/// Backdrop ships a privileged daemon at `com.cindori.BackdropDaemon` but
+/// our trace on 2026-05-28 confirmed Backdrop's wallpaper works WITHOUT
+/// the daemon being registered — the daemon is for the "modern" idleassetsd
+/// path (`/Library/Application Support/com.apple.idleassetsd/Customer/`)
+/// which Backdrop uses for premium/system-wide aerials.
 ///
-/// The v1 NSWindow desktop wallpaper engine (`WallpaperWindowController.swift`
-/// + `WallpaperPlayer.swift`) is the maximum a third-party FOSS app can
-/// achieve on Tahoe 26.5. Lock-screen video wallpaper is fundamentally
-/// not possible for unsigned/dev-signed apps.
+/// Test scripts (each documents one hypothesis):
+/// - `scripts/test-h4-apple-category.py` — reject (wrong category UUID)
+/// - `scripts/test-h6-system-default.py` — reject (missing category record)
+/// - `scripts/test-h7-full-backdrop-recipe.py` — reject (matches Backdrop's
+///    exact static state, still no render — runtime trigger is the gap)
 ///
-/// Original reverse-engineered recipe (kept for documentation):
-/// 1. Copy video → `aerials/videos/<UUID>.mov` (or `.mp4`)
-/// 2. Generate thumbnail PNG → `aerials/thumbnails/<UUID>.png`
-/// 3. Add asset entry to `aerials/manifest/entries.json`
-/// 4. Edit `wallpaper/Store/Index.plist` Desktop + Idle slots
-/// 5. `killall WallpaperAgent WallpaperAerialsExtension`
+/// Until the private Wallpaper.framework XPC is replicated, the v1 NSWindow
+/// desktop wallpaper engine (`WallpaperPlayer.swift` +
+/// `WallpaperWindowController.swift`) is the maximum a third-party FOSS app
+/// can achieve. Backdrop ALSO uses NSWindow for desktop rendering — the
+/// only thing the private API buys is lock-screen video.
+
 final class AerialInstaller {
 
     private static let supportDir = FileManager.default.urls(for: .applicationSupportDirectory,
