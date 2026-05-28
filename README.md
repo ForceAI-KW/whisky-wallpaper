@@ -29,7 +29,7 @@ If you're already paying for Backdrop and happy with it, keep it — they earned
 
 Download the latest `Whisky.Wallpaper.app.zip` from the [Releases page](https://github.com/ForceAI-KW/whisky-wallpaper/releases), unzip, and drag to `/Applications`.
 
-First launch: right-click → Open (macOS Gatekeeper will warn — the binary is ad-hoc signed, not Developer-ID signed). After the first allow, future launches are unblocked.
+First launch: right-click → Open (macOS Gatekeeper will warn — the binary is self-signed, not Developer-ID signed). After the first allow, future launches are unblocked.
 
 ### Build from source
 
@@ -39,7 +39,9 @@ cd whisky-wallpaper
 ./scripts/install.sh
 ```
 
-The script: builds Release with ad-hoc codesign, installs to `/Applications/Whisky Wallpaper.app`, registers the app as a Login Item, launches it. Idempotent — safe to re-run.
+The script: builds Release, signs with a stable self-signed certificate if one is installed in your login keychain (named `Ahmad Sharaf Code Signing` by default — rename in `scripts/install.sh` to match your cert) — otherwise falls back to ad-hoc. Then installs to `/Applications/Whisky Wallpaper.app`, registers the app as a Login Item, launches it. Idempotent — safe to re-run.
+
+**Stable signing & TCC grants (v1.2.0+):** ad-hoc signatures change every build, so any TCC permissions you've granted (AppleEvents, Accessibility, etc.) get invalidated on every reinstall. Drop a stable self-signed certificate into your login keychain and the installer will use it instead — the binary's Designated Requirement stays constant across rebuilds, so grants persist forever. The installer also detects a change of signing identity vs the previously-installed copy and calls `tccutil reset` only when needed, so you get one clean round of prompts when migrating.
 
 You'll need Xcode (or the Command Line Tools) installed.
 
@@ -128,7 +130,7 @@ In `AppDelegate.applicationDidFinishLaunching`, first-run picks the **largest** 
 
 - **macOS 13** (Ventura) or later
 - A reasonably modern Mac (any Apple Silicon, or Intel Mac with hardware H.264 decode)
-- **No** Apple Developer account needed — Whisky Wallpaper ships ad-hoc signed
+- **No** Apple Developer account needed — Whisky Wallpaper ships self-signed (stable cert if you have one in your keychain, else ad-hoc)
 - **No** Backdrop / other wallpaper app needed running — uninstall those first to avoid double-wallpaper situations
 
 ## Uninstall
