@@ -6,7 +6,7 @@
 # 4. Launch + register as a Login Item
 # Idempotent — safe to re-run.
 
-INSTALLER_VERSION="1.2.1"
+INSTALLER_VERSION="1.2.0"
 
 set -euo pipefail
 cd "$(dirname "$0")/.."

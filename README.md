@@ -2,7 +2,7 @@
 
 > A free, native macOS animated-wallpaper engine. Plays 4K videos behind your desktop icons. Rotates through a folder of wallpapers on a timer. No subscription, no account, no telemetry — just AVFoundation + AppKit talking to your Mac directly.
 
-![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue) ![Swift 6](https://img.shields.io/badge/Swift-6-orange) ![License: MIT](https://img.shields.io/badge/License-MIT-green) ![Architecture: AppKit + AVFoundation](https://img.shields.io/badge/AppKit%20%2B%20AVFoundation-native-purple)
+![macOS 26+](https://img.shields.io/badge/macOS-26%2B-blue) ![Swift 5](https://img.shields.io/badge/Swift-5-orange) ![License: MIT](https://img.shields.io/badge/License-MIT-green) ![Architecture: AppKit + AVFoundation](https://img.shields.io/badge/AppKit%20%2B%20AVFoundation-native-purple)
 
 ---
 
@@ -79,6 +79,7 @@ That's it.
     Pause                          ⌘P
     Reload wallpaper               ⌘R
     Reveal in Finder
+    Lock-screen sync: On           ⌘L
     ──────────────────────────
     Quit Whisky Wallpaper          ⌘Q
 ```
@@ -87,22 +88,24 @@ The menu live-updates: now-playing title, next-rotation countdown, the active-ro
 
 ## Privacy
 
-- **No network calls**, ever. The binary is statically analyzable — it links only `AppKit`, `AVFoundation`, `ServiceManagement`, and `UniformTypeIdentifiers`. No analytics SDK, no telemetry, no auto-updater, no remote config.
+- **No network calls**, ever. The binary links `AppKit`, `AVFoundation`, `ServiceManagement`, `UniformTypeIdentifiers`, and Apple's private `Wallpaper.framework` (for lock-screen sync). No analytics SDK, no telemetry, no auto-updater, no remote config.
 - **No account.** It doesn't know who you are.
 - **No file uploads.** Videos play from local disk via a security-scoped bookmark stored in `UserDefaults`.
 
 ## Architecture
 
-Six Swift files, ~625 lines. All public macOS APIs — no private symbols, no entitlements beyond the default unsandboxed app.
+Seven Swift files. Desktop rendering uses only public macOS APIs. Lock-screen sync links Apple's private `Wallpaper.framework` (see Privacy and Requirements below).
 
 ```
 WhiskyWallpaper/
 ├── WhiskyWallpaperApp.swift          @main entry, hands off to AppDelegate
-├── AppDelegate.swift                 NSStatusItem menu, first-run, Login Item
-├── SettingsManager.swift             UserDefaults + security-scoped bookmarks
+├── AppDelegate.swift                 NSStatusItem menu, first-run, Login Item, activateWallpaper coordinator
+├── SettingsManager.swift             UserDefaults + security-scoped bookmarks + isLockScreenSyncEnabled
 ├── PlaylistManager.swift             folder scan + rotation timer
 ├── WallpaperPlayer.swift             AVQueuePlayer + AVPlayerLooper, sleep/wake observers
-└── WallpaperWindowController.swift   one NSWindow per NSScreen at kCGDesktopWindowLevel
+├── WallpaperWindowController.swift   one NSWindow per NSScreen at kCGDesktopWindowLevel
+├── AerialInstaller.swift             stages video as system aerial in ~/Library/Application Support/com.apple.wallpaper/aerials/
+└── WallpaperBridge.swift             private Wallpaper.framework bridge via @_silgen_name
 ```
 
 ### Key technical choices
@@ -121,17 +124,18 @@ In `AppDelegate.applicationDidFinishLaunching`, first-run picks the **largest** 
 
 ## What it doesn't do
 
-- **Lock-screen video.** macOS doesn't expose a public API for that — you'd need a separate `.saver` screensaver bundle. Roadmap item; PRs welcome.
+- **Fully-animated lock-screen video.** v2 ships a partial solution: `AerialInstaller` registers the active video in System Settings → Wallpaper so you can activate it end-to-end via Apple's signed UI; `WallpaperBridge` sets a matching still-frame PNG as the system static wallpaper so the lock screen visually matches the desktop. What remains unimplemented is _automatic_ aerial activation via Apple's private `WallpaperSettingsManager` XPC interface (Backdrop uses this Cindori Developer ID-signed path). Toggle the partial solution via **Lock-screen sync: On/Off** (⌘L).
 - **In-app browsing of online wallpaper libraries.** Whisky Wallpaper plays files you already have. Use MoeWalls / Pixabay / your own DSLR clips to source them.
 - **Per-display different wallpapers.** All displays mirror the same video. Could be added — not currently a goal.
 - **Touch-bar shenanigans, widgets, control-center plugins.** Just a wallpaper engine.
 
 ## Requirements
 
-- **macOS 13** (Ventura) or later
+- **macOS 26** (Tahoe) or later
 - A reasonably modern Mac (any Apple Silicon, or Intel Mac with hardware H.264 decode)
 - **No** Apple Developer account needed — Whisky Wallpaper ships self-signed (stable cert if you have one in your keychain, else ad-hoc)
 - **No** Backdrop / other wallpaper app needed running — uninstall those first to avoid double-wallpaper situations
+- **Footprint note:** the entitlements plist is empty (unsandboxed), but the app links Apple's private `Wallpaper.framework` and writes video copies, PNG thumbnails, and metadata to `~/Library/Application Support/com.apple.wallpaper/aerials/` when lock-screen sync is enabled (default On). See SECURITY.md for details.
 
 ## Uninstall
 
