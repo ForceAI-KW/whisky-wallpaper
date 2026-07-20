@@ -1,0 +1,90 @@
+{
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/scripts/test-h4-apple-category.py": {
+    "mtime": 1779915653.7104266,
+    "hash": "6e6f1b2dde8df4178182fe4428acda52"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/scripts/test-h6-system-default.py": {
+    "mtime": 1779915850.8213747,
+    "hash": "71390053eea54c0e37ccc0f2f5d1f192"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/scripts/test-h7-full-backdrop-recipe.py": {
+    "mtime": 1779917652.7514138,
+    "hash": "3417aea7fd881b06ac4a15a210282f46"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/AerialInstaller.swift": {
+    "mtime": 1779919791.560103,
+    "hash": "d2b27039ce040ac5c64d34389c46aecf"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/WhiskyWallpaperApp.swift": {
+    "mtime": 1779898629.479808,
+    "hash": "70a11b3d625d37cfe9c201248e0afbc0"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/PlaylistManager.swift": {
+    "mtime": 1779899655.6860743,
+    "hash": "6f67fce068258d01f2bb427200d1f89c"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/WallpaperBridge.swift": {
+    "mtime": 1779919826.1479392,
+    "hash": "1d5d397f7aacf59f23c35fd50c50540e"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/WallpaperPlayer.swift": {
+    "mtime": 1779916088.3518016,
+    "hash": "a161f7fa1316afaaa5565b58370b34fe"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/AppDelegate.swift": {
+    "mtime": 1779919887.1562629,
+    "hash": "e657b9c39fbfe948d5a22163649f2bab"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/WallpaperWindowController.swift": {
+    "mtime": 1779916088.3519275,
+    "hash": "685ec427719c74380bdb7d2f77b396eb"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/SettingsManager.swift": {
+    "mtime": 1779919904.2634697,
+    "hash": "d365ef2be28f8c654557b10de319a291"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/README.md": {
+    "mtime": 1779961807.6681979,
+    "hash": "6ace07fca26144e9a638516f6d4a88cb"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/CLAUDE.md": {
+    "mtime": 1779920090.57832,
+    "hash": "e166c4decbcee382be69dab879569cc7"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/SECURITY.md": {
+    "mtime": 1779900649.5041342,
+    "hash": "3d03365164f3762946fdef9a49459a1b"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/Assets.xcassets/AppIcon.appiconset/icon_64x64.png": {
+    "mtime": 1779899795.9404893,
+    "hash": "d11d87c50955469d96f9a7afc90f85a7"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/Assets.xcassets/AppIcon.appiconset/icon_128x128.png": {
+    "mtime": 1779899795.9677975,
+    "hash": "4c88fe6957a4fc3339a97182894f8192"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/Assets.xcassets/AppIcon.appiconset/icon_32x32.png": {
+    "mtime": 1779899795.9136987,
+    "hash": "1436eff3b07070b641052d7f6f3ac765"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/Assets.xcassets/AppIcon.appiconset/icon_1024x1024.png": {
+    "mtime": 1779899796.0521605,
+    "hash": "40a88ed4bb9911a82c9ce82ce81f2de9"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/Assets.xcassets/AppIcon.appiconset/icon_512x512.png": {
+    "mtime": 1779899796.0312576,
+    "hash": "d9b761c899492fd553f844351ba45d36"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/Assets.xcassets/AppIcon.appiconset/icon_16x16.png": {
+    "mtime": 1779899795.8857148,
+    "hash": "38f4185d14dc0712c73c41e15f0237ca"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/Assets.xcassets/AppIcon.appiconset/icon_256x256.png": {
+    "mtime": 1779899795.9986477,
+    "hash": "d62b8f25f57af98cad13e7e644f4ea41"
+  },
+  "/Users/ahmadsharaf/Desktop/projects/_personal/whisky-wallpaper/WhiskyWallpaper/Assets.xcassets/menuIcon.imageset/menuIcon.png": {
+    "mtime": 1779898588.71676,
+    "hash": "75d043f13eff51f5ae73def97271d557"
+  }
+}
